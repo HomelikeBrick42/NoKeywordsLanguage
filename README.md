@@ -10,6 +10,7 @@
 ## Functions:
 
 The function returns whatever value its block returns
+
 Functions are first class, so they are values and usally assigned to constants
 
 ### Function Types
