@@ -25,11 +25,23 @@ Functions are first class, so they are values and usally assigned to constants
 
 a generic identity function:
 
-`($T: type) -> ((value: T) -> T) { (value: T) -> T { value } }`
+```
+($T: type) -> ((value: T) -> T) {
+    (value: T) -> T {
+        value
+    }
+}
+```
 
 or if you want to remove the unnessaseary types and let the compiler infer them
 
-`($T: type) { (value: T) { value } }`
+```
+($T: type) {
+    (value: T) {
+        value
+    }
+}
+```
 
 ### Calling a function:
 `func(a, b)`
