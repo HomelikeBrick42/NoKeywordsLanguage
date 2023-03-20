@@ -4,6 +4,14 @@
 - `void`
 - `bool`
 - `int`
+- `never`
+- `label`
+- `[]T` slice - a pointer + length for referencing contiguous memory
+- `[N]T` array - the same as a struct with N elements of the same type, can be indexed
+- `[..]T` dynamic array - a pointer + length + capacity
+- `[^]T` multi-pointer - a pointer that can be indexed but not dereferenced, has no length information and its memory representation is identical to `^T`
+- `^T` pointer
+- `rawptr` raw pointer type, similar to `void*` in c++
 - Union types (see below)
 - Function types (see below)
 - Struct types (see below)
@@ -49,6 +57,26 @@ or if you want to remove the unnessaseary types and let the compiler infer them
 
 ### Calling the "generic" identity function from before
 `foo(int)(5)`
+
+## Control flow
+
+### Conditional expressions
+
+If:
+
+`condition ? then_expr : else_expr`
+
+`condition ? then_expr`
+
+While loop:
+
+`condition <-> repeat_body`
+
+### Unconditional expressions
+
+Goto:
+
+`->label`
 
 ## Structs
 
