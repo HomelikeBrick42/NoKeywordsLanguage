@@ -1,0 +1,3 @@
+main :: (args: [][^]u8) -> int {
+    int(args.length)
+}

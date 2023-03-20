@@ -4,6 +4,15 @@
 - `void`
 - `bool`
 - `int`
+- `uint`
+- `u8`
+- `u16`
+- `u32`
+- `u64`
+- `s8`
+- `s16`
+- `s32`
+- `s64`
 - `never`
 - `label`
 - `[]T` slice - a pointer + length for referencing contiguous memory
@@ -11,7 +20,7 @@
 - `[..]T` dynamic array - a pointer + length + capacity
 - `[^]T` multi-pointer - a pointer that can be indexed but not dereferenced, has no length information and its memory representation is identical to `^T`
 - `^T` pointer
-- `rawptr` raw pointer type, similar to `void*` in c++
+- `rawptr` raw pointer type, similar to `void*` in c/c++
 - Union types (see below)
 - Function types (see below)
 - Struct types (see below)
