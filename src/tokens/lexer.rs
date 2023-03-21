@@ -1,8 +1,6 @@
-use std::{iter::Peekable, str::CharIndices};
-
-use derive_more::Display;
-
 use super::{SourceLocation, Token, TokenKind};
+use derive_more::Display;
+use std::{iter::Peekable, str::CharIndices};
 
 #[derive(Debug, Clone)]
 pub struct Lexer<'filepath, 'source> {
@@ -23,6 +21,10 @@ impl<'filepath, 'source> Lexer<'filepath, 'source> {
             source,
             chars: source.char_indices().peekable(),
         }
+    }
+
+    pub fn get_filepath(&self) -> &'filepath str {
+        self.location.filepath
     }
 
     pub fn peek_char(&mut self) -> Option<char> {
@@ -69,6 +71,8 @@ impl<'filepath, 'source> Iterator for Lexer<'filepath, 'source> {
                     '/' => TokenKind::Slash,
                     '^' => TokenKind::Caret,
                     '.' => TokenKind::Period,
+                    ',' => TokenKind::Comma,
+                    '=' => TokenKind::Equal,
                     '(' => TokenKind::OpenParenthesis,
                     ')' => TokenKind::CloseParenthesis,
                     '{' => TokenKind::OpenBrace,
@@ -99,7 +103,7 @@ impl<'filepath, 'source> Iterator for Lexer<'filepath, 'source> {
                     }
                 },
                 location: start_location,
-                length: self.location.position - start_location.position,
+                end_location: self.location,
             }));
         }
     }

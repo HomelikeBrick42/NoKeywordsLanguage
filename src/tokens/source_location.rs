@@ -13,4 +13,5 @@ pub struct SourceLocation<'filepath> {
 
 pub trait GetLocation<'filepath> {
     fn get_location(&self) -> SourceLocation<'filepath>;
+    fn get_end_location(&self) -> SourceLocation<'filepath>;
 }

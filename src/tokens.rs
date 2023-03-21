@@ -1,5 +1,4 @@
 use derive_more::Display;
-use enum_as_inner::EnumAsInner;
 
 mod lexer;
 mod source_location;
@@ -7,7 +6,7 @@ mod source_location;
 pub use lexer::*;
 pub use source_location::*;
 
-#[derive(Debug, Display, Clone, PartialEq, EnumAsInner)]
+#[derive(Debug, Display, Clone, PartialEq)]
 pub enum TokenKind<'source> {
     #[display(fmt = "{{newline}}")]
     Newline,
@@ -31,6 +30,10 @@ pub enum TokenKind<'source> {
     Caret,
     #[display(fmt = ".")]
     Period,
+    #[display(fmt = ",")]
+    Comma,
+    #[display(fmt = "=")]
+    Equal,
     #[display(fmt = "(")]
     OpenParenthesis,
     #[display(fmt = ")")]
@@ -50,11 +53,15 @@ pub enum TokenKind<'source> {
 pub struct Token<'filepath, 'source> {
     pub kind: TokenKind<'source>,
     pub location: SourceLocation<'filepath>,
-    pub length: usize,
+    pub end_location: SourceLocation<'filepath>,
 }
 
 impl<'filepath, 'source> GetLocation<'filepath> for Token<'filepath, 'source> {
     fn get_location(&self) -> SourceLocation<'filepath> {
         self.location
+    }
+
+    fn get_end_location(&self) -> SourceLocation<'filepath> {
+        self.end_location
     }
 }

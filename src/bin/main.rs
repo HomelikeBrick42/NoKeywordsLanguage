@@ -1,6 +1,8 @@
+use no_keywords_language::{
+    parsing::parse_file,
+    tokens::{GetLocation, Lexer},
+};
 use std::io::Write;
-
-use no_keywords_language::tokens::{GetLocation, Lexer};
 
 fn help(program_name: &str, f: &mut dyn Write) -> std::io::Result<()> {
     writeln!(f, "Usage: {program_name} {{command}} [options]")?;
@@ -45,7 +47,22 @@ fn main() {
         }
 
         "dump_ast" => {
-            todo!()
+            let filepath = args.next().unwrap_or_else(|| {
+                writeln!(stderr, "Expected a source file to parse the ast from").unwrap();
+                help(&program_name, stderr).unwrap();
+                std::process::exit(1)
+            });
+            let source = std::fs::read_to_string(&filepath).unwrap_or_else(|e| {
+                writeln!(stderr, "Unable to open '{filepath}': {e}").unwrap();
+                std::process::exit(1)
+            });
+            let expressions = parse_file(&filepath, &source).unwrap_or_else(|e| {
+                writeln!(stderr, "{e}").unwrap();
+                std::process::exit(1)
+            });
+            for expression in expressions {
+                writeln!(stdout, "{expression:#?}").unwrap();
+            }
         }
 
         "dump_ir" => {
