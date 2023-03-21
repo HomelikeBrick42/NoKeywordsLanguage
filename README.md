@@ -2,6 +2,7 @@
 
 ## Types
 - `void`
+- `type`
 - `bool`
 - `int`
 - `uint`
