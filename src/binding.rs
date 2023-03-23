@@ -397,11 +397,12 @@ fn bind_expression<'filepath, 'source>(
 
                     if argument_types.len() == 1 && to_type == argument_types[0] {
                         arguments[0]
-                    } else if argument_types.len() == 1
-                        && matches!(
-                            (&types[to_type], &types[argument_types[0]]),
-                            (Type::Int, Type::UInt)
-                        )
+                    } else if argument_types.is_empty()
+                        || (argument_types.len() == 1
+                            && matches!(
+                                (&types[to_type], &types[argument_types[0]]),
+                                (Type::Int, Type::UInt)
+                            ))
                     {
                         nodes.insert(BoundNode::Cast {
                             location: expression.get_location(),
