@@ -395,21 +395,22 @@ fn bind_expression<'filepath, 'source>(
                         .map(|&argument| nodes[argument].get_type(nodes))
                         .collect::<Vec<_>>();
 
-                    'node: {
-                        if match (&types[to_type], argument_types.as_slice()) {
-                            (_, &[b]) if to_type == b => break 'node arguments[0], // no conversion nessaseary
-                            (Type::Int, &[uint]) if matches!(types[uint], Type::UInt) => true,
-                            (_, _) => false,
-                        } {
-                            nodes.insert(BoundNode::Cast {
-                                location: expression.get_location(),
-                                end_location: expression.get_end_location(),
-                                to_type,
-                                from_expressions: arguments,
-                            })
-                        } else {
-                            todo!()
-                        }
+                    if argument_types.len() == 1 && to_type == argument_types[0] {
+                        arguments[0]
+                    } else if argument_types.len() == 1
+                        && matches!(
+                            (&types[to_type], &types[argument_types[0]]),
+                            (Type::Int, Type::UInt)
+                        )
+                    {
+                        nodes.insert(BoundNode::Cast {
+                            location: expression.get_location(),
+                            end_location: expression.get_end_location(),
+                            to_type,
+                            from_expressions: arguments,
+                        })
+                    } else {
+                        todo!()
                     }
                 }
                 Type::Procedure {
