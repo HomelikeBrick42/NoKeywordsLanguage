@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 
 use crate::{
+    eval::{eval_bound_node, Value},
     nodes::{NodeID, Nodes},
     parsing::Ast,
-    tokens::{GetLocation, SourceLocation},
+    tokens::{GetLocation, SourceLocation, TokenKind},
 };
 use derive_more::Display;
 
@@ -59,10 +60,10 @@ fn bind_expression<'filepath, 'source>(
 ) -> Result<NodeID<BoundNode<'filepath>>, BindingError<'filepath>> {
     Ok(match *expression {
         Ast::Block {
-            ref open_brace_token,
-            ref expressions,
-            ref close_brace_token,
+            ref expressions, ..
         } => {
+            let names = &mut names.clone();
+
             let bound_expressions = expressions
                 .iter()
                 .map(|expression| {
@@ -83,8 +84,8 @@ fn bind_expression<'filepath, 'source>(
             );
 
             nodes.insert(BoundNode::Block {
-                location: open_brace_token.get_location(),
-                end_location: close_brace_token.get_end_location(),
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
                 expressions: bound_expressions,
                 result_type,
             })
@@ -95,10 +96,67 @@ fn bind_expression<'filepath, 'source>(
             ref value,
             ..
         } => {
-            _ = name_token;
-            _ = typ;
-            _ = value;
-            todo!()
+            let typ = typ
+                .as_ref()
+                .map(|typ| {
+                    let typ = bind_expression(
+                        typ,
+                        nodes,
+                        types,
+                        &mut names.clone(),
+                        common_types,
+                        Some(common_types.typ),
+                    )?;
+
+                    if !nodes[typ].is_constant(nodes) {
+                        todo!()
+                    }
+
+                    if !matches!(types[nodes[typ].get_type(nodes)], Type::Type) {
+                        todo!()
+                    }
+
+                    let Value::Type { typ } = eval_bound_node(typ, nodes) else { unreachable!() };
+                    Ok(typ)
+                })
+                .transpose()?;
+
+            let value = bind_expression(
+                value,
+                nodes,
+                types,
+                &mut names.clone(),
+                common_types,
+                typ.or(type_hint),
+            )?;
+
+            if !nodes[value].is_constant(nodes) {
+                todo!()
+            }
+
+            let value_type = nodes[value].get_type(nodes);
+
+            if let Some(typ) = typ {
+                if value_type != typ {
+                    todo!()
+                }
+            }
+
+            let typ = typ.unwrap_or(value_type);
+
+            let value = eval_bound_node(value, nodes);
+
+            let constant = nodes.insert(BoundNode::Constant {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                typ,
+                value,
+            });
+
+            let TokenKind::Name(name) = name_token.kind else { unreachable!() };
+            names.insert(name, constant);
+
+            constant
         }
         Ast::Declaration {
             ref name_token,
@@ -106,47 +164,198 @@ fn bind_expression<'filepath, 'source>(
             ref value,
             ..
         } => {
-            _ = name_token;
-            _ = typ;
-            _ = value;
-            todo!()
+            let typ = typ
+                .as_ref()
+                .map(|typ| {
+                    let typ = bind_expression(
+                        typ,
+                        nodes,
+                        types,
+                        &mut names.clone(),
+                        common_types,
+                        Some(common_types.typ),
+                    )?;
+
+                    if !nodes[typ].is_constant(nodes) {
+                        todo!()
+                    }
+
+                    if !matches!(types[nodes[typ].get_type(nodes)], Type::Type) {
+                        todo!()
+                    }
+
+                    let Value::Type { typ } = eval_bound_node(typ, nodes) else { unreachable!() };
+                    Ok(typ)
+                })
+                .transpose()?;
+
+            let value = value
+                .as_ref()
+                .map(|value| {
+                    let value = bind_expression(
+                        value,
+                        nodes,
+                        types,
+                        &mut names.clone(),
+                        common_types,
+                        typ,
+                    )?;
+                    Ok(value)
+                })
+                .transpose()?;
+
+            let typ = typ.unwrap_or_else(|| nodes[value.unwrap()].get_type(nodes));
+
+            let declaration = nodes.insert(BoundNode::Declaration {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                typ,
+                value,
+            });
+
+            let TokenKind::Name(name) = name_token.kind else { unreachable!() };
+            names.insert(name, declaration);
+
+            declaration
         }
         Ast::Name { ref name_token } => {
-            _ = name_token;
-            todo!()
+            let TokenKind::Name(name) = name_token.kind else { unreachable!() };
+            let Some(&node) = names.get(name) else {
+                todo!()
+            };
+            nodes.insert(BoundNode::Name {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                referenced_node: node,
+            })
         }
-        Ast::ParenthesisedExpression { ref expression, .. } => {
-            bind_expression(expression, nodes, types, names, common_types, type_hint)?
-        }
+        Ast::ParenthesisedExpression { ref expression, .. } => bind_expression(
+            expression,
+            nodes,
+            types,
+            &mut names.clone(),
+            common_types,
+            type_hint,
+        )?,
         Ast::MemberAccess {
             ref operand,
             ref member_name_token,
             ..
         } => {
-            _ = operand;
-            _ = member_name_token;
-            todo!()
+            let operand = bind_expression(operand, nodes, types, names, common_types, None)?;
+            let operand_type = nodes[operand].get_type(nodes);
+            let TokenKind::Name(name) = member_name_token.kind else { unreachable!() };
+            let (member_index, result_type) = match types[operand_type] {
+                Type::Slice { inner_type } => match name {
+                    "data" => (0, common_types.get_pointer(types, inner_type)),
+                    "length" => (1, common_types.uint),
+                    _ => todo!(),
+                },
+                _ => todo!(),
+            };
+            nodes.insert(BoundNode::MemberAccess {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                operand,
+                member_index,
+                result_type,
+            })
         }
         Ast::Procedure {
-            ref open_parenthesis_token,
             ref parameters,
             ref return_type,
             ref body,
             ..
         } => {
-            _ = open_parenthesis_token;
-            _ = parameters;
-            _ = return_type;
-            _ = body;
-            todo!()
+            let names = &mut names.clone();
+
+            let parameters = parameters
+                .iter()
+                .enumerate()
+                .map(|(i, parameter)| {
+                    let type_hint = type_hint.and_then(|typ| {
+                        if let Type::Procedure { ref parameters, .. } = types[typ] {
+                            parameters.get(i).copied()
+                        } else {
+                            None
+                        }
+                    });
+
+                    let parameter =
+                        bind_expression(parameter, nodes, types, names, common_types, type_hint)?;
+
+                    if let BoundNode::Declaration { value, .. } = nodes[parameter] {
+                        if value.is_some() {
+                            todo!() // cannot have default procedure parameter values (for now)
+                        }
+                    } else {
+                        unreachable!()
+                    }
+
+                    Ok(parameter)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+
+            let return_type = bind_expression(
+                return_type,
+                nodes,
+                types,
+                &mut names.clone(),
+                common_types,
+                Some(common_types.typ),
+            )?;
+
+            if !nodes[return_type].is_constant(nodes) {
+                todo!()
+            }
+
+            if !matches!(types[nodes[return_type].get_type(nodes)], Type::Type) {
+                todo!()
+            }
+
+            let Value::Type { typ: return_type } = eval_bound_node(return_type, nodes) else { unreachable!() };
+            let body = bind_expression(body, nodes, types, names, common_types, Some(return_type))?;
+
+            if nodes[body].get_type(nodes) != return_type {
+                todo!()
+            }
+
+            let parameter_types = parameters
+                .iter()
+                .map(|&parameter| nodes[parameter].get_type(nodes))
+                .collect::<Vec<_>>();
+
+            let typ = type_hint
+                .and_then(|typ| {
+                    if let Type::Procedure {
+                        parameters: ref other_parameters,
+                        return_type: other_return_type,
+                    } = types[typ]
+                    {
+                        (other_return_type == return_type && other_parameters == &parameter_types)
+                            .then_some(typ)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or_else(|| {
+                    common_types.get_procedure(types, &parameter_types, return_type)
+                });
+
+            nodes.insert(BoundNode::Procedure {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                parameters,
+                return_type,
+                typ,
+                body,
+            })
         }
         Ast::ProcedureType {
-            ref open_parenthesis_token,
             ref parameters,
             ref return_type,
             ..
         } => {
-            _ = open_parenthesis_token;
             _ = parameters;
             _ = return_type;
             todo!()
@@ -154,52 +363,142 @@ fn bind_expression<'filepath, 'source>(
         Ast::Call {
             ref operand,
             ref arguments,
-            ref close_parenthesis_token,
             ..
         } => {
-            _ = operand;
-            _ = arguments;
-            _ = close_parenthesis_token;
-            todo!()
+            let operand = bind_expression(operand, nodes, types, names, common_types, None)?;
+            let operand_type = nodes[operand].get_type(nodes);
+            match types[operand_type] {
+                Type::Type => {
+                    if !nodes[operand].is_constant(nodes) {
+                        todo!()
+                    }
+                    if !matches!(types[nodes[operand].get_type(nodes)], Type::Type) {
+                        todo!()
+                    }
+                    let Value::Type { typ: to_type } = eval_bound_node(operand, nodes) else { unreachable!() };
+
+                    let arguments = arguments
+                        .iter()
+                        .enumerate()
+                        .map(|(i, argument)| {
+                            let type_hint = match (&types[to_type], i, arguments.len()) {
+                                (_, 0, 1) => Some(to_type),
+                                (_, _, _) => None,
+                            };
+
+                            bind_expression(argument, nodes, types, names, common_types, type_hint)
+                        })
+                        .collect::<Result<Vec<_>, _>>()?;
+
+                    let argument_types = arguments
+                        .iter()
+                        .map(|&argument| nodes[argument].get_type(nodes))
+                        .collect::<Vec<_>>();
+
+                    'node: {
+                        if match (&types[to_type], argument_types.as_slice()) {
+                            (_, &[b]) if to_type == b => break 'node arguments[0], // no conversion nessaseary
+                            (Type::Int, &[uint]) if matches!(types[uint], Type::UInt) => true,
+                            (_, _) => false,
+                        } {
+                            nodes.insert(BoundNode::Cast {
+                                location: expression.get_location(),
+                                end_location: expression.get_end_location(),
+                                to_type,
+                                from_expressions: arguments,
+                            })
+                        } else {
+                            todo!()
+                        }
+                    }
+                }
+                Type::Procedure {
+                    ref parameters,
+                    return_type,
+                } => {
+                    _ = parameters;
+                    _ = return_type;
+                    todo!()
+                }
+                _ => {
+                    todo!()
+                }
+            }
         }
-        Ast::StructType {
-            ref open_parenthesis_token,
-            ref members,
-            ref close_parenthesis_token,
-        } => {
-            _ = open_parenthesis_token;
+        Ast::StructType { ref members, .. } => {
             _ = members;
-            _ = close_parenthesis_token;
             todo!();
         }
-        Ast::SliceType {
-            ref open_square_bracket_token,
-            ref operand,
-            ..
-        } => {
-            _ = open_square_bracket_token;
-            _ = operand;
-            todo!()
+        Ast::SliceType { ref operand, .. } => {
+            let operand = bind_expression(
+                operand,
+                nodes,
+                types,
+                &mut names.clone(),
+                common_types,
+                Some(common_types.typ),
+            )?;
+
+            if !nodes[operand].is_constant(nodes) {
+                todo!()
+            }
+
+            if !matches!(types[nodes[operand].get_type(nodes)], Type::Type) {
+                todo!()
+            }
+
+            let Value::Type { typ: operand } = eval_bound_node(operand, nodes) else { unreachable!() };
+
+            let typ = common_types.get_slice(types, operand);
+
+            nodes.insert(BoundNode::Type {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                typ,
+                type_type: type_hint
+                    .and_then(|typ| matches!(types[typ], Type::Type).then_some(typ))
+                    .unwrap_or(common_types.typ),
+            })
         }
         Ast::ArrayType {
-            ref open_square_bracket_token,
             ref length,
             ref operand,
             ..
         } => {
-            _ = open_square_bracket_token;
             _ = length;
             _ = operand;
             todo!()
         }
-        Ast::MultipointerType {
-            ref open_square_bracket_token,
-            ref operand,
-            ..
-        } => {
-            _ = open_square_bracket_token;
-            _ = operand;
-            todo!()
+        Ast::MultipointerType { ref operand, .. } => {
+            let operand = bind_expression(
+                operand,
+                nodes,
+                types,
+                &mut names.clone(),
+                common_types,
+                Some(common_types.typ),
+            )?;
+
+            if !nodes[operand].is_constant(nodes) {
+                todo!()
+            }
+
+            if !matches!(types[nodes[operand].get_type(nodes)], Type::Type) {
+                todo!()
+            }
+
+            let Value::Type { typ: operand } = eval_bound_node(operand, nodes) else { unreachable!() };
+
+            let typ = common_types.get_multipointer(types, operand);
+
+            nodes.insert(BoundNode::Type {
+                location: expression.get_location(),
+                end_location: expression.get_end_location(),
+                typ,
+                type_type: type_hint
+                    .and_then(|typ| matches!(types[typ], Type::Type).then_some(typ))
+                    .unwrap_or(common_types.typ),
+            })
         }
     })
 }
