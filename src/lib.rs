@@ -6,4 +6,3 @@ pub mod eval;
 pub mod nodes;
 pub mod parsing;
 pub mod tokens;
-pub mod emit;

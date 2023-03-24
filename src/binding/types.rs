@@ -52,18 +52,4 @@ impl Type {
             }
         }
     }
-
-    pub fn get_size(&self, _types: &Nodes<Type>) -> usize {
-        match *self {
-            Type::Type => 8,
-            Type::Void => 0,
-            Type::Int => 8,
-            Type::UInt => 8,
-            Type::U8 => 1,
-            Type::Slice { .. } => 16,
-            Type::Pointer { .. } => 8,
-            Type::Multipointer { .. } => 8,
-            Type::Procedure { .. } => 8,
-        }
-    }
 }
