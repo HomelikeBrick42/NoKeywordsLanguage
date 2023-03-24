@@ -16,6 +16,10 @@ impl<T> NodeID<T> {
         let id = CURRENT_ID.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         Self(id.try_into().unwrap(), PhantomData)
     }
+
+    pub fn into_inner(self) -> NonZeroUsize {
+        self.0
+    }
 }
 
 impl<T> Default for NodeID<T> {
